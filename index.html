@@ -1,0 +1,268 @@
+import datetime
+import streamlit as st
+
+# Thiết lập giao diện trang
+st.set_page_config(
+    page_title="Hệ Thống Tính Tiền Phòng Trọ & Dịch Vụ", page_icon="🏠", layout="wide"
+)
+
+# Khởi tạo giỏ hàng cho đồ uống / dịch vụ phát sinh trong tháng
+if "cart" not in st.session_state:
+  st.session_state.cart = []
+
+st.title("🏠🧋 Phần Mềm Tính Tiền Phòng Trọ & Đồ Uống Kèm Theo")
+st.markdown(
+    "Nhập thông tin chi phí phòng trọ hàng tháng và các món trà sữa (nếu có) để"
+    " tổng hợp hóa đơn thanh toán chính xác."
+)
+st.divider()
+
+# --- PHẦN 1: THÔNG TIN PHÒNG TRỌ & KHÁCH HÀNG ---
+st.header("1. Thông Tin Phòng Trọ & Khách Hàng")
+col1, col2 = st.columns(2)
+
+with col1:
+  customer_name = st.text_input(
+      "Tên khách thuê phòng", placeholder="Ví dụ: Nguyễn Văn A"
+  )
+  room_number = st.text_input(
+      "Số phòng / Tên phòng", placeholder="Ví dụ: Phòng 402"
+  )
+
+with col2:
+  room_price = st.number_input(
+      "Tiền phòng cố định (VNĐ)",
+      min_value=0.0,
+      value=3000000.0,
+      step=100000.0,
+  )
+  wifi_price = st.number_input(
+      "Tiền Wifi / Internet (VNĐ)", min_value=0.0, value=100000.0, step=10000.0
+  )
+
+col3, col4 = st.columns(2)
+with col3:
+  electricity_cost = st.number_input(
+      "Tiền điện (VNĐ)", min_value=0.0, value=350000.0, step=50000.0
+  )
+with col4:
+  water_cost = st.number_input(
+      "Tiền nước (VNĐ)", min_value=0.0, value=120000.0, step=20000.0
+  )
+
+st.divider()
+
+# --- PHẦN 2: GỌI ĐỒ UỐNG (TRÀ SỮA) PHÁT SINH ---
+st.header("2. Gọi Thêm Đồ Uống (Quầy Trà Sữa)")
+
+MILK_TEA_PRICES = {
+    "Trà sữa truyền thống": 25000,
+    "Trà sữa thái xanh": 28000,
+    "Trà sữa ô long": 30000,
+    "Trà sữa khoai môn": 32000,
+    "Hồng trà đào": 25000,
+}
+
+SIZE_PRICES = {"Size S (Nhỏ)": 0, "Size M (Vừa)": 5000, "Size L (Lớn)": 10000}
+
+TOPPING_PRICES = {
+    "Trân châu đen": 5000,
+    "Trân châu trắng": 6000,
+    "Thạch phô mai": 10000,
+    "Pudding trứng": 8000,
+    "Khúc bạch": 8000,
+}
+
+with st.form("drink_form", clear_on_submit=True):
+  st.subheader("Thêm món đồ uống vào hóa đơn phòng")
+  d_col1, d_col2, d_col3 = st.columns(3)
+
+  with d_col1:
+    tea_type = st.selectbox(
+        "Loại trà sữa", options=list(MILK_TEA_PRICES.keys())
+    )
+    size = st.selectbox("Size", options=list(SIZE_PRICES.keys()))
+
+  with d_col2:
+    toppings = st.multiselect(
+        "Loại topping", options=list(TOPPING_PRICES.keys())
+    )
+    quantity = st.number_input(
+        "Số lượng ly", min_value=1, value=1, step=1
+    )
+
+  with d_col3:
+    sugar = st.select_slider(
+        "Mức độ đường", options=["0%", "30%", "50%", "70%", "100%"], value="70%"
+    )
+    ice = st.select_slider(
+        "Mức độ đá", options=["0%", "30%", "50%", "70%", "100%"], value="70%"
+    )
+
+  submitted_item = st.form_submit_button("➕ Thêm món vào hóa đơn phòng")
+  if submitted_item:
+    base_price = MILK_TEA_PRICES[tea_type] + SIZE_PRICES[size]
+    topping_total = sum([TOPPING_PRICES[t] for t in toppings])
+    unit_price = base_price + topping_total
+    total_item_price = unit_price * quantity
+
+    item_data = {
+        "tea_type": tea_type,
+        "size": size,
+        "toppings": toppings if toppings else ["Không topping"],
+        "sugar": sugar,
+        "ice": ice,
+        "quantity": quantity,
+        "unit_price": unit_price,
+        "total_price": total_item_price,
+    }
+    st.session_state.cart.append(item_data)
+    st.success(f"Đã thêm thành công {quantity}x {tea_type}!")
+
+# Hiển thị giỏ hàng đồ uống hiện tại
+if st.session_state.cart:
+  st.subheader("🛒 Danh sách đồ uống đã gọi thêm trong tháng:")
+  cart_display = []
+  for idx, item in enumerate(st.session_state.cart):
+    cart_display.append({
+        "STT": idx + 1,
+        "Món": item["tea_type"],
+        "Size": item["size"],
+        "Topping": ", ".join(item["toppings"]),
+        "Đường/Đá": f"Đường {item['sugar']} - Đá {item['ice']}",
+        "Số lượng": item["quantity"],
+        "Đơn giá": f"{item['unit_price']:,.0f} đ",
+        "Thành tiền": f"{item['total_price']:,.0f} đ",
+    })
+  st.table(cart_display)
+
+  if st.button("🗑️ Xóa tất cả đồ uống đã gọi"):
+    st.session_state.cart = []
+    st.rerun()
+
+st.divider()
+
+# --- PHẦN 3: XÁC NHẬN THANH TOÁN VÀ XUẤT HÓA ĐƠN ---
+if st.button(
+    "💳 TÍNH TIỀN & XUẤT HÓA ĐƠN THANH TOÁN",
+    type="primary",
+    use_container_width=True,
+):
+  if not customer_name or not room_number:
+    st.error("Vui lòng nhập đầy đủ Tên khách hàng và Số phòng!")
+  else:
+    # Tính tổng tiền các khoản dịch vụ trọ
+    total_room_services = room_price + electricity_cost + water_cost + wifi_price
+    # Tính tổng tiền đồ uống phát sinh
+    total_drinks_cost = sum([item["total_price"] for item in st.session_state.cart])
+    # Tổng thanh toán toàn bộ
+    grand_total = total_room_services + total_drinks_cost
+
+    st.success("🎉 Tổng hợp hóa đơn hàng tháng hoàn tất!")
+
+    # Hiển thị giao diện hóa đơn trực quan
+    st.markdown("---")
+    st.markdown(
+        "<h2 style='text-align: center; color: #2E86C1;'>HÓA ĐƠN THANH TOÁN TỔNG"
+        " HỢP PHÒNG TRỌ</h2>",
+        unsafe_allow_html=True,
+    )
+
+    now = datetime.datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+    st.markdown(
+        f"**Khách thuê:** {customer_name} &nbsp;&nbsp;|&nbsp;&nbsp; **Phòng:"
+        f"** {room_number}"
+    )
+    st.markdown(f"**Thời gian lập hóa đơn:** {now}")
+
+    # Bảng chi phí phòng trọ
+    st.markdown("#### A. Các khoản phí phòng trọ")
+    room_invoice_data = [
+        {"Khoản mục": "Tiền phòng", "Thành tiền": f"{room_price:,.0f} đ"},
+        {"Khoản mục": "Tiền điện", "Thành tiền": f"{electricity_cost:,.0f} đ"},
+        {"Khoản mục": "Tiền nước", "Thành tiền": f"{water_cost:,.0f} đ"},
+        {"Khoản mục": "Tiền Wifi", "Thành tiền": f"{wifi_price:,.0f} đ"},
+        {
+            "Khoản mục": "**Tổng tiền phòng trọ**",
+            "Thành tiền": f"**{total_room_services:,.0f} đ**",
+        },
+    ]
+    st.table(room_invoice_data)
+
+    # Bảng chi phí đồ uống nếu có gọi thêm
+    if st.session_state.cart:
+      st.markdown("#### B. Chi phí đồ uống phát sinh thêm")
+      drink_invoice_data = []
+      for idx, item in enumerate(st.session_state.cart):
+        drink_invoice_data.append({
+            "STT": idx + 1,
+            "Tên món": f"{item['tea_type']} ({item['size']})",
+            "Tùy chọn": (
+                f"Topping: {', '.join(item['toppings'])} | Đường: {item['sugar']}"
+                f" - Đá: {item['ice']}"
+            ),
+            "SL": item["quantity"],
+            "Thành tiền": f"{item['total_price']:,.0f} đ",
+        })
+      st.table(drink_invoice_data)
+      st.markdown(
+          f"**Tổng tiền đồ uống phát sinh:** `{total_drinks_cost:,.0f} đ`"
+      )
+
+    st.markdown("---")
+    st.markdown(
+        f"### 💰 TỔNG CỘNG THANH TOÁN THÁNG NÀY: :red[{grand_total:,.0f} VNĐ]"
+    )
+    st.markdown("---")
+
+    # --- TẠO NỘI DUNG XUẤT FILE HÓA ĐƠN TXT ---
+    invoice_text = f"""========================================
+       HÓA ĐƠN THANH TOÁN PHÒNG TRỌ & DỊCH VỤ
+========================================
+Thời gian xuất: {now}
+Khách hàng: {customer_name}
+Số phòng: {room_number}
+
+--- A. CHI PHÍ PHÒNG TRỌ ---
+- Tiền phòng: {room_price:,.0f} đ
+- Tiền điện: {electricity_cost:,.0f} đ
+- Tiền nước: {water_cost:,.0f} đ
+- Tiền Wifi: {wifi_price:,.0f} đ
+Tổng chi phí trọ: {total_room_services:,.0f} đ
+
+--- B. ĐỒ UỐNG PHÁT SINH ---
+"""
+    if st.session_state.cart:
+      for idx, item in enumerate(st.session_state.cart):
+        invoice_text += (
+            f"{idx + 1}. {item['tea_type']} - {item['size']} x{item['quantity']}\n"
+        )
+        invoice_text += (
+            f"   + Topping: {', '.join(item['toppings'])}\n"
+        )
+        invoice_text += (
+            f"   + Đường: {item['sugar']} | Đá: {item['ice']}\n"
+        )
+        invoice_text += f"   + Thành tiền: {item['total_price']:,.0f} đ\n"
+      invoice_text += (
+          f"Tổng tiền đồ uống: {total_drinks_cost:,.0f} đ\n"
+      )
+    else:
+      invoice_text += "Không có phát sinh đồ uống trong tháng.\n"
+
+    invoice_text += f"""
+========================================
+TỔNG CỘNG THANH TOÁN: {grand_total:,.0f} VNĐ
+========================================
+Cảm ơn quý khách! Chúc quý khách một ngày tốt lành.
+"""
+
+    # Nút tải file hóa đơn về máy
+    st.download_button(
+        label="📥 Tải xuống hóa đơn (.txt)",
+        data=invoice_text,
+        file_name=(
+            f"HoaDon_{room_number.replace(' ', '_')}_{datetime.date.today()}.txt"
+        ),
+        mime="text/plain",
+    )
